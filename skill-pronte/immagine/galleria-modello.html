@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Image Studio - le tue immagini</title>
+<!-- Modello della galleria della skill «immagine». Non si apre da qui: lo strumento (genera.pl o genera.ps1) lo copia in
+     _attachments/immagini/galleria.html a ogni immagine nuova, con dentro l'elenco delle immagini (dalle ricette .json)
+     e dei prompt salvati (da 3-Resources/Prompt immagini/). La pagina non va online e non salva niente: legge e mostra. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,800;1,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Galleria a griglia sotto un'intestazione fissa; scheda dei prompt a due colonne; immagine grande in sovrimpressione. */
+  :root {
+    --bg: #0D0B0A;
+    --card: #151110;
+    --card-2: #1D1917;
+    --testo: #F6F2EB;
+    --soft: rgba(246, 242, 235, .68);
+    --tenue: rgba(246, 242, 235, .45);
+    --linea: rgba(246, 242, 235, .14);
+    --accento: #22E0FF;
+    --su-accento: #0D0B0A;
+    --alone: 0 0 0 1px rgba(34, 224, 255, .35), 0 0 24px rgba(34, 224, 255, .18);
+    --velo: rgba(8, 7, 6, .92);
+    --titoli: 'Archivo', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+    --corpo: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --r: 12px;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #F2EDE3;
+      --card: #FAF7F0;
+      --card-2: #EAE3D6;
+      --testo: #141110;
+      --soft: rgba(20, 17, 16, .7);
+      --tenue: rgba(20, 17, 16, .5);
+      --linea: rgba(20, 17, 16, .14);
+      --accento: #0092B3;
+      --su-accento: #FAF7F0;
+      --alone: 0 0 0 1px rgba(0, 146, 179, .4), 0 6px 18px rgba(20, 17, 16, .08);
+      --velo: rgba(242, 237, 227, .95);
+      color-scheme: light;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  html { scrollbar-gutter: stable; }
+  body { background: var(--bg); color: var(--testo); font: 15px/1.5 var(--corpo); min-height: 100vh; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  button:focus-visible, input:focus-visible, .scheda:focus-visible, .voce:focus-visible { outline: 2px solid var(--accento); outline-offset: 2px; }
+  .giro { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+  header { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--linea); }
+  .testa { display: flex; align-items: center; gap: 22px; padding-block: 14px; flex-wrap: wrap; }
+  .logo { font: 800 22px/1 var(--titoli); text-transform: uppercase; letter-spacing: -.01em; white-space: nowrap; }
+  .logo em { color: var(--accento); }
+  .schede { display: flex; gap: 4px; }
+  .scheda-btn { padding: 7px 16px; border-radius: 999px; color: var(--soft); font-weight: 600; }
+  .scheda-btn:hover { color: var(--testo); }
+  .scheda-btn[aria-selected="true"] { background: var(--testo); color: var(--bg); }
+  .conto { margin-left: auto; font: 12px/1 var(--mono); color: var(--soft); background: var(--card); border: 1px solid var(--linea); padding: 8px 12px; border-radius: 999px; white-space: nowrap; }
+  .conto b { color: var(--testo); font-weight: 600; }
+
+  main { padding-block: 28px 64px; }
+  .occhiello { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--accento); }
+  h1, h2 { font: 800 clamp(26px, 4vw, 34px)/1.1 var(--titoli); text-transform: uppercase; letter-spacing: -.01em; margin: 6px 0 6px; text-wrap: balance; }
+  h1 em, h2 em { color: var(--accento); }
+  .sotto { color: var(--soft); max-width: 68ch; margin-bottom: 20px; }
+
+  .barra { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  .cerca { flex: 1 1 260px; background: var(--card); border: 1px solid var(--linea); color: var(--testo); border-radius: 999px; padding: 10px 16px; font: inherit; }
+  .cerca::placeholder { color: var(--tenue); }
+  .filtro { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--linea); color: var(--soft); font-size: 14px; display: inline-flex; gap: 8px; align-items: center; }
+  .filtro span { font: 12px var(--mono); color: var(--tenue); }
+  .filtro[aria-pressed="true"] { background: var(--testo); color: var(--bg); border-color: var(--testo); }
+  .filtro[aria-pressed="true"] span { color: var(--bg); opacity: .7; }
+
+  .griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+  .scheda { background: var(--card); border: 1px solid var(--linea); border-radius: var(--r); overflow: hidden; cursor: pointer; display: flex; flex-direction: column; text-align: left; transition: transform .15s, box-shadow .15s; }
+  .scheda:hover { transform: translateY(-2px); box-shadow: var(--alone); }
+  .scheda .foto { aspect-ratio: 1; background: var(--card-2); position: relative; }
+  .scheda img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tipo { position: absolute; top: 8px; left: 8px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--velo); color: var(--testo); }
+  .tipo.t-modifica { background: var(--accento); color: var(--su-accento); }
+  .scheda .info { padding: 10px 12px 12px; display: grid; gap: 4px; }
+  .scheda .rich { font-size: 13px; color: var(--testo); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .scheda .data { font: 11.5px var(--mono); color: var(--tenue); font-variant-numeric: tabular-nums; }
+
+  .vuoto { border: 1px dashed var(--linea); border-radius: var(--r); padding: 36px 24px; color: var(--soft); max-width: 640px; }
+  .vuoto b { display: block; color: var(--testo); font: 800 18px/1.2 var(--titoli); text-transform: uppercase; margin-bottom: 8px; }
+  .vuoto code, .nota code { font: 13px var(--mono); color: var(--testo); background: var(--card-2); padding: 1px 6px; border-radius: 5px; }
+
+  /* prompt */
+  .prompt-giro { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 760px) { .prompt-giro { grid-template-columns: 1fr; } }
+  .elenco { display: grid; gap: 6px; }
+  .voce { text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; }
+  .voce:hover { background: var(--card); }
+  .voce[aria-current="true"] { background: var(--card); border-color: var(--accento); }
+  .voce .t { font-weight: 600; }
+  .voce .d { font: 11.5px var(--mono); color: var(--tenue); }
+  .pannello { background: var(--card); border: 1px solid var(--linea); border-radius: var(--r); padding: 20px; display: grid; gap: 14px; min-width: 0; }
+  .pannello h3 { font: 800 20px/1.2 var(--titoli); text-transform: uppercase; }
+  .testo-prompt { white-space: pre-wrap; background: var(--card-2); border-radius: 10px; padding: 14px 16px; font-size: 15px; line-height: 1.6; max-width: 72ch; overflow-wrap: anywhere; }
+  .note-prompt { color: var(--soft); white-space: pre-wrap; font-size: 14px; max-width: 72ch; }
+  .esempi { display: flex; gap: 10px; flex-wrap: wrap; }
+  .esempi button img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; display: block; border: 1px solid var(--linea); }
+  .percorso { font: 12px var(--mono); color: var(--tenue); word-break: break-all; }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; border: 1px solid var(--linea); }
+  .btn.pieno { background: var(--accento); color: var(--su-accento); border-color: var(--accento); }
+  .btn:hover { box-shadow: var(--alone); }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* immagine grande */
+  .lb { position: fixed; inset: 0; z-index: 50; background: var(--velo); display: grid; grid-template-columns: minmax(0, 1fr) 380px; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  @media (max-width: 900px) { .lb { grid-template-columns: 1fr; grid-template-rows: 55vh auto; overflow-y: auto; } }
+  .lb-foto { position: relative; display: flex; align-items: center; justify-content: center; padding: 24px 64px; min-height: 0; }
+  .lb-foto > img { max-width: 100%; max-height: calc(100vh - 48px); object-fit: contain; border-radius: 8px; }
+  @media (max-width: 900px) { .lb-foto { padding: 16px 48px; } .lb-foto > img { max-height: calc(55vh - 32px); } }
+  .confronto { position: relative; max-width: 100%; max-height: calc(100vh - 48px); }
+  .confronto img { display: block; max-width: 100%; max-height: calc(100vh - 48px); border-radius: 8px; }
+  @media (max-width: 900px) { .confronto, .confronto img { max-height: calc(55vh - 32px); } }
+  .confronto .sopra { position: absolute; inset: 0; }
+  .confronto .sopra img { width: 100%; height: 100%; object-fit: cover; }
+  .confronto input { position: absolute; left: 12px; right: 12px; bottom: 12px; width: calc(100% - 24px); accent-color: var(--accento); }
+  .confronto .et { position: absolute; top: 10px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--velo); }
+  .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; background: var(--card); border: 1px solid var(--linea); font-size: 22px; line-height: 1; }
+  .nav.prec { left: 12px; } .nav.succ { right: 12px; }
+  .lb-lato { background: var(--card); border-left: 1px solid var(--linea); padding: 22px 22px 28px; overflow-y: auto; overflow-x: hidden; min-width: 0; display: grid; gap: 16px; align-content: start; }
+  @media (max-width: 900px) { .lb-lato { border-left: 0; border-top: 1px solid var(--linea); } }
+  .chiudi { justify-self: end; font-size: 14px; color: var(--soft); border: 1px solid var(--linea); padding: 6px 12px; border-radius: 999px; }
+  .nomefile { font: 12px var(--mono); color: var(--tenue); word-break: break-all; }
+  .etichetta { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--tenue); margin-bottom: 6px; }
+  .dettagli { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+  .dettagli dt { color: var(--tenue); }
+  .dettagli dd { font-variant-numeric: tabular-nums; word-break: break-word; }
+  .rif { display: flex; gap: 8px; flex-wrap: wrap; }
+  .rif img, .rif .senza { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--linea); display: block; }
+  .rif .senza { display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--tenue); padding: 4px; text-align: center; word-break: break-all; }
+  .nota { font-size: 13px; color: var(--soft); }
+  .avviso { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--testo); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-weight: 600; z-index: 60; }
+  footer { border-top: 1px solid var(--linea); padding-block: 18px 28px; color: var(--tenue); font-size: 13px; }
+  @media (prefers-reduced-motion: reduce) { .scheda { transition: none; } .scheda:hover { transform: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="giro testa">
+    <div class="logo">Image <em>Studio</em></div>
+    <div class="schede" role="tablist">
+      <button class="scheda-btn" role="tab" id="tab-galleria" aria-selected="true" aria-controls="vista-galleria">Galleria</button>
+      <button class="scheda-btn" role="tab" id="tab-prompt" aria-selected="false" aria-controls="vista-prompt">Prompt</button>
+    </div>
+    <div class="conto" id="conto"></div>
+  </div>
+</header>
+
+<main class="giro">
+  <section id="vista-galleria" role="tabpanel" aria-labelledby="tab-galleria">
+    <div class="occhiello">Le tue immagini</div>
+    <h1>Galleria <em id="quante"></em></h1>
+    <p class="sotto">Ogni immagine fatta con la skill, con la sua ricetta: il prompt, le foto di partenza, il modello e quanto è costata. Clicca un'immagine per vederla grande.</p>
+    <div class="barra">
+      <input class="cerca" id="cerca" type="search" placeholder="Cerca nel nome del file o nel prompt..." aria-label="Cerca nel nome del file o nel prompt">
+      <div class="fila" id="filtri"></div>
+    </div>
+    <div class="griglia" id="griglia"></div>
+    <div class="vuoto" id="vuoto-galleria" hidden>
+      <b>Ancora nessuna immagine</b>
+      Chiedi a Claude la prima, per esempio: «fammi un'immagine per il mio prossimo post». Quando è pronta, ricarica questa pagina.
+    </div>
+    <div class="vuoto" id="vuoto-ricerca" hidden><b>Nessuna immagine trovata</b>Prova con un'altra parola, oppure scegli «Tutte».</div>
+  </section>
+
+  <section id="vista-prompt" role="tabpanel" aria-labelledby="tab-prompt" hidden>
+    <div class="occhiello">La tua libreria</div>
+    <h2>Prompt <em>da riusare</em></h2>
+    <p class="sotto">I prompt che hai deciso di tenere, uno per file nel tuo secondo cervello: <span class="percorso" id="cartella-prompt"></span>. Copiane uno e chiedi a Claude di partire da lì.</p>
+    <div class="prompt-giro" id="prompt-giro">
+      <div>
+        <input class="cerca" id="cerca-prompt" type="search" placeholder="Cerca..." aria-label="Cerca nei prompt" style="width:100%;margin-bottom:10px">
+        <div class="elenco" id="elenco-prompt"></div>
+      </div>
+      <div class="pannello" id="pannello-prompt"></div>
+    </div>
+    <div class="vuoto" id="vuoto-prompt" hidden>
+      <b>Ancora nessun prompt salvato</b>
+      Quando un'immagine ti piace, aprila nella Galleria e premi «Tienilo come prompt»: copia una frase da dare a Claude. Claude salva il prompt in <code id="cartella-prompt-2"></code> e dopo, ricaricando la pagina, lo trovi qui.
+    </div>
+  </section>
+</main>
+
+<footer class="giro" id="piede"></footer>
+
+<div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Immagine grande">
+  <div class="lb-foto" id="lb-foto"></div>
+  <aside class="lb-lato" id="lb-lato"></aside>
+</div>
+<div class="avviso" id="avviso" hidden></div>
+
+<script id="dati" type="application/json">{"aggiornata":"","cartella_prompt":"3-Resources/Prompt immagini","immagini":[],"prompt":[]}</script>
+<script>
+(function () {
+  'use strict';
+  var D;
+  try { D = JSON.parse(document.getElementById('dati').textContent); } catch (e) { D = { immagini: [], prompt: [] }; }
+  var IMM = (D.immagini || []).filter(function (m) { return m && m.file; });
+  var PROMPT = (D.prompt || []).map(leggiPrompt);
+  var CARTELLA = D.cartella_prompt || '3-Resources/Prompt immagini';
+
+  // --- utilità ---
+  function $(id) { return document.getElementById(id); }
+  function el(tag, attr, figli) {
+    var e = document.createElement(tag);
+    for (var k in (attr || {})) {
+      if (k === 'testo') e.textContent = attr[k];
+      else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), attr[k]);
+      else e.setAttribute(k, attr[k]);
+    }
+    (figli || []).forEach(function (f) { if (f) e.appendChild(f); });
+    return e;
+  }
+  function src(percorso) { return String(percorso).split('/').map(encodeURIComponent).join('/'); }
+  function euro(x) { return (Math.round(x * 1000) / 1000).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + ' $'; }
+  function quando(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(s || '');
+    return m ? m[3] + '/' + m[2] + '/' + m[1] + (m[4] ? ' ' + m[4] + ':' + m[5] : '') : (s || '');
+  }
+  function avviso(t) {
+    var a = $('avviso'); a.textContent = t; a.hidden = false;
+    clearTimeout(avviso.t); avviso.t = setTimeout(function () { a.hidden = true; }, 1800);
+  }
+  function copia(testo, conferma) {
+    function ripiego() {
+      var t = el('textarea'); t.value = testo; t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      try { document.execCommand('copy'); avviso(conferma); } catch (e) { avviso('Non riesco a copiare: seleziona il testo a mano'); }
+      t.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(testo).then(function () { avviso(conferma); }, ripiego);
+    else ripiego();
+  }
+
+  // --- immagini: ordine, gruppi, tipo ---
+  var perFile = {};
+  IMM.forEach(function (m) { perFile[m.file] = m; });
+  IMM.forEach(function (m) {
+    var g = /^(.*)-(\d{8}-\d{6})-(\d+)\.\w+$/.exec(m.file);
+    m._gruppo = g ? g[1] + '-' + g[2] : m.file;
+    m._ora = g ? g[2] : (m.data || '').replace(/\D/g, '');
+    m._n = g ? +g[3] : 1;
+    var rif = m.riferimenti || [];
+    m._rif = rif.map(function (r) {
+      var nome = String(r).split('/').pop();
+      if (perFile[r] || perFile[nome]) return { nome: nome, src: perFile[r] ? r : nome, galleria: perFile[r] || perFile[nome] };
+      if (/^riferimenti\//.test(r)) return { nome: nome, src: r };
+      return { nome: nome, src: null };
+    });
+    m._tipo = !rif.length ? 'zero' : (m._rif.some(function (r) { return r.galleria; }) ? 'modifica' : 'foto');
+  });
+  IMM.sort(function (a, b) { return a._ora === b._ora ? a._n - b._n : (a._ora < b._ora ? 1 : -1); });
+  IMM.forEach(function (m) { m._varianti = IMM.filter(function (x) { return x._gruppo === m._gruppo; }).length; });
+
+  var TIPI = [['tutte', 'Tutte'], ['zero', 'Da zero'], ['foto', 'Da una foto'], ['modifica', 'Modifiche']];
+  var NOMI_TIPO = { zero: '', foto: 'da una foto', modifica: 'modifica' };
+  var filtro = 'tutte', testoCerca = '', visibili = [];
+
+  function conto() {
+    var tot = 0, noto = false;
+    IMM.forEach(function (m) { if (typeof m.costo_usd === 'number') { tot += m.costo_usd; noto = true; } });
+    $('conto').innerHTML = '';
+    var pezzi = [el('span', { testo: 'immagini ' }), el('b', { testo: String(IMM.length) })];
+    if (noto) pezzi.push(el('span', { testo: '  ·  speso ' }), el('b', { testo: euro(tot) }));
+    pezzi.forEach(function (p) { $('conto').appendChild(p); });
+    $('quante').textContent = IMM.length ? '· ' + IMM.length : '';
+  }
+
+  function disegnaFiltri() {
+    var box = $('filtri'); box.innerHTML = '';
+    TIPI.forEach(function (t) {
+      var n = t[0] === 'tutte' ? IMM.length : IMM.filter(function (m) { return m._tipo === t[0]; }).length;
+      box.appendChild(el('button', { class: 'filtro', 'aria-pressed': String(filtro === t[0]),
+        onclick: function () { filtro = t[0]; disegnaFiltri(); disegnaGriglia(); } },
+        [document.createTextNode(t[1]), el('span', { testo: String(n) })]));
+    });
+  }
+
+  function disegnaGriglia() {
+    var q = testoCerca.trim().toLowerCase();
+    visibili = IMM.filter(function (m) {
+      if (filtro !== 'tutte' && m._tipo !== filtro) return false;
+      return !q || (m.file + ' ' + (m.richiesta || '')).toLowerCase().indexOf(q) >= 0;
+    });
+    var g = $('griglia'); g.innerHTML = '';
+    visibili.forEach(function (m, i) {
+      var foto = el('div', { class: 'foto' }, [el('img', { src: src(m.file), alt: (m.richiesta || m.file).slice(0, 120), loading: 'lazy' })]);
+      if (NOMI_TIPO[m._tipo]) foto.appendChild(el('span', { class: 'tipo t-' + m._tipo, testo: NOMI_TIPO[m._tipo] }));
+      var info = el('div', { class: 'info' }, [
+        el('div', { class: 'rich', testo: m.richiesta || '' }),
+        el('div', { class: 'data', testo: quando(m.data) + (m._varianti > 1 ? '  ·  variante ' + m._n + ' di ' + m._varianti : '') })
+      ]);
+      g.appendChild(el('button', { class: 'scheda', onclick: function () { apri(i); } }, [foto, info]));
+    });
+    $('vuoto-galleria').hidden = IMM.length > 0;
+    $('vuoto-ricerca').hidden = !IMM.length || visibili.length > 0;
+  }
+
+  // --- immagine grande ---
+  var aperta = -1, confronto = false;
+  function apri(i) { aperta = i; confronto = false; disegnaLb(); $('lb').hidden = false; document.body.style.overflow = 'hidden'; }
+  function apriFile(file) {
+    filtro = 'tutte'; testoCerca = ''; $('cerca').value = ''; disegnaFiltri(); disegnaGriglia();
+    mostra('galleria');
+    var i = visibili.findIndex(function (m) { return m.file === file; });
+    if (i >= 0) apri(i);
+  }
+  function chiudi() { $('lb').hidden = true; aperta = -1; document.body.style.overflow = ''; }
+  function sposta(d) { if (aperta < 0 || !visibili.length) return; aperta = (aperta + d + visibili.length) % visibili.length; confronto = false; disegnaLb(); }
+
+  function disegnaLb() {
+    var m = visibili[aperta]; if (!m) return;
+    var f = $('lb-foto'); f.innerHTML = '';
+    var prima = m._rif.filter(function (r) { return r.src; })[0];
+    if (confronto && prima) {
+      var sopra = el('div', { class: 'sopra' }, [el('img', { src: src(prima.src), alt: 'Prima: ' + prima.nome })]);
+      var cursore = el('input', { type: 'range', min: '0', max: '100', value: '50', 'aria-label': 'Sposta per confrontare prima e dopo' });
+      function taglia() { sopra.style.clipPath = 'inset(0 ' + (100 - cursore.value) + '% 0 0)'; }
+      cursore.addEventListener('input', taglia);
+      f.appendChild(el('div', { class: 'confronto' }, [
+        el('img', { src: src(m.file), alt: 'Dopo' }), sopra, cursore,
+        el('span', { class: 'et', style: 'left:10px', testo: 'Prima' }), el('span', { class: 'et', style: 'right:10px', testo: 'Dopo' })
+      ]));
+      taglia();
+    } else {
+      f.appendChild(el('img', { src: src(m.file), alt: (m.richiesta || m.file).slice(0, 160) }));
+    }
+    if (visibili.length > 1) {
+      f.appendChild(el('button', { class: 'nav prec', 'aria-label': 'Immagine precedente', testo: '‹', onclick: function () { sposta(-1); } }));
+      f.appendChild(el('button', { class: 'nav succ', 'aria-label': 'Immagine successiva', testo: '›', onclick: function () { sposta(1); } }));
+    }
+
+    var lato = $('lb-lato'); lato.innerHTML = '';
+    lato.appendChild(el('button', { class: 'chiudi', testo: 'Chiudi  ✕', onclick: chiudi }));
+    lato.appendChild(el('div', {}, [el('div', { class: 'etichetta', testo: 'Prompt' }), el('div', { class: 'testo-prompt', testo: m.richiesta || '' })]));
+    var azioni = el('div', { class: 'fila' }, [
+      el('button', { class: 'btn pieno', testo: 'Copia il prompt', onclick: function () { copia(m.richiesta || '', 'Prompt copiato'); } }),
+      el('button', { class: 'btn', testo: 'Tienilo come prompt', onclick: function () {
+        copia('Salva come prompt riusabile la richiesta dell\'immagine ' + m.file + ', in ' + CARTELLA + '.', 'Frase copiata: incollala a Claude');
+      } })
+    ]);
+    if (prima) azioni.appendChild(el('button', { class: 'btn', testo: confronto ? 'Solo il risultato' : 'Prima e dopo', onclick: function () { confronto = !confronto; disegnaLb(); } }));
+    lato.appendChild(azioni);
+    if (m._rif.length) {
+      var rif = el('div', { class: 'rif' });
+      m._rif.forEach(function (r) {
+        if (r.galleria) rif.appendChild(el('button', { title: 'Apri ' + r.nome, onclick: function () { apriFile(r.galleria.file); } }, [el('img', { src: src(r.src), alt: r.nome })]));
+        else if (r.src) rif.appendChild(el('div', { title: r.nome }, [el('img', { src: src(r.src), alt: r.nome, class: '' })]));
+        else rif.appendChild(el('div', { class: 'senza', testo: r.nome }));
+      });
+      lato.appendChild(el('div', {}, [el('div', { class: 'etichetta', testo: m._tipo === 'modifica' ? 'Fatta partendo da' : 'Foto di partenza' }), rif]));
+    }
+    var righe = [
+      ['Data', quando(m.data)],
+      ['Modello', m.modello],
+      ['Proporzione', m.proporzione],
+      ['Varianti', m._varianti > 1 ? m._n + ' di ' + m._varianti : null],
+      ['Tempo', typeof m.secondi === 'number' ? m.secondi + ' secondi' : null],
+      ['Costo', typeof m.costo_usd === 'number' ? euro(m.costo_usd) : 'non comunicato']
+    ];
+    var dl = el('dl', { class: 'dettagli' });
+    righe.forEach(function (r) { if (r[1]) { dl.appendChild(el('dt', { testo: r[0] })); dl.appendChild(el('dd', { testo: String(r[1]) })); } });
+    lato.appendChild(el('div', {}, [el('div', { class: 'etichetta', testo: 'Ricetta' }), dl]));
+    lato.appendChild(el('div', { class: 'nomefile', testo: '_attachments/immagini/' + m.file }));
+  }
+
+  // --- prompt salvati ---
+  function leggiPrompt(p) {
+    var t = String(p.testo || '').replace(/\r\n/g, '\n');
+    var meta = {}, corpo = t;
+    var fm = /^---\n([\s\S]*?)\n---\n?/.exec(t);
+    if (fm) {
+      fm[1].split('\n').forEach(function (r) { var m = /^([A-Za-zÀ-ÿ_]+):\s*(.*)$/.exec(r); if (m) meta[m[1].toLowerCase()] = m[2].replace(/^["']|["']$/g, ''); });
+      corpo = t.slice(fm[0].length);
+    }
+    var titolo = (p.file || '').replace(/\.md$/i, '');
+    var mt = /^#\s+(.+)$/m.exec(corpo);
+    if (mt) { titolo = mt[1].trim(); corpo = corpo.replace(mt[0], ''); }
+    var parti = corpo.split(/^##\s+/m);
+    var testo = parti[0].trim();
+    var note = parti.slice(1).map(function (s) { var r = s.split('\n'); return { titolo: r[0].trim(), testo: r.slice(1).join('\n').trim() }; });
+    var esempi = (meta.esempio || meta.esempi || '').split(',').map(function (s) { return s.trim().split('/').pop(); }).filter(Boolean);
+    return { file: p.file, titolo: titolo, testo: testo, note: note, meta: meta, esempi: esempi, data: meta.creato || p.modificato };
+  }
+  var scelto = 0, cercaP = '';
+  function disegnaPrompt() {
+    $('cartella-prompt').textContent = CARTELLA + '/';
+    $('cartella-prompt-2').textContent = CARTELLA + '/';
+    $('vuoto-prompt').hidden = PROMPT.length > 0;
+    $('prompt-giro').hidden = !PROMPT.length;
+    if (!PROMPT.length) return;
+    var q = cercaP.trim().toLowerCase();
+    var lista = PROMPT.map(function (p, i) { return [p, i]; }).filter(function (x) { return !q || (x[0].titolo + ' ' + x[0].testo).toLowerCase().indexOf(q) >= 0; });
+    var box = $('elenco-prompt'); box.innerHTML = '';
+    lista.forEach(function (x) {
+      box.appendChild(el('button', { class: 'voce', 'aria-current': String(x[1] === scelto), onclick: function () { scelto = x[1]; disegnaPrompt(); } },
+        [el('div', { class: 't', testo: x[0].titolo }), el('div', { class: 'd', testo: quando(x[0].data) })]));
+    });
+    var p = PROMPT[scelto], pan = $('pannello-prompt'); pan.innerHTML = '';
+    pan.appendChild(el('h3', { testo: p.titolo }));
+    pan.appendChild(el('div', { class: 'testo-prompt', testo: p.testo }));
+    var info = [];
+    if (p.meta.proporzione) info.push('proporzione ' + p.meta.proporzione);
+    if (p.meta.modello) info.push(p.meta.modello);
+    if (info.length) pan.appendChild(el('div', { class: 'nota', testo: info.join('  ·  ') }));
+    pan.appendChild(el('div', { class: 'fila' }, [
+      el('button', { class: 'btn pieno', testo: 'Copia il prompt', onclick: function () { copia(p.testo, 'Prompt copiato'); } }),
+      el('button', { class: 'btn', testo: 'Copia la frase per Claude', onclick: function () {
+        copia('Fammi un\'immagine partendo dal prompt «' + p.titolo + '» (' + CARTELLA + '/' + p.file + '). Questa volta: ', 'Frase copiata: completala e incollala a Claude');
+      } })
+    ]));
+    var fatte = IMM.filter(function (m) { return p.esempi.indexOf(m.file) >= 0 || (m.richiesta || '').trim() === p.testo; });
+    if (fatte.length) {
+      var es = el('div', { class: 'esempi' });
+      fatte.slice(0, 8).forEach(function (m) { es.appendChild(el('button', { title: m.file, onclick: function () { apriFile(m.file); } }, [el('img', { src: src(m.file), alt: m.file, loading: 'lazy' })])); });
+      pan.appendChild(el('div', {}, [el('div', { class: 'etichetta', testo: 'Fatte con questo prompt' }), es]));
+    }
+    p.note.forEach(function (n) {
+      pan.appendChild(el('div', {}, [el('div', { class: 'etichetta', testo: n.titolo }), el('div', { class: 'note-prompt', testo: n.testo })]));
+    });
+    pan.appendChild(el('div', { class: 'percorso', testo: CARTELLA + '/' + p.file }));
+  }
+
+  // --- schede ---
+  function mostra(quale) {
+    $('tab-galleria').setAttribute('aria-selected', String(quale === 'galleria'));
+    $('tab-prompt').setAttribute('aria-selected', String(quale === 'prompt'));
+    $('vista-galleria').hidden = quale !== 'galleria';
+    $('vista-prompt').hidden = quale !== 'prompt';
+    try { localStorage.setItem('image-studio-scheda', quale); } catch (e) {}
+  }
+  $('tab-galleria').addEventListener('click', function () { mostra('galleria'); });
+  $('tab-prompt').addEventListener('click', function () { mostra('prompt'); });
+  $('cerca').addEventListener('input', function (e) { testoCerca = e.target.value; disegnaGriglia(); });
+  $('cerca-prompt').addEventListener('input', function (e) { cercaP = e.target.value; disegnaPrompt(); });
+  $('lb').addEventListener('click', function (e) { if (e.target === $('lb') || e.target === $('lb-foto')) chiudi(); });
+  document.addEventListener('keydown', function (e) {
+    if ($('lb').hidden) return;
+    if (e.key === 'Escape') chiudi();
+    else if (e.key === 'ArrowLeft') sposta(-1);
+    else if (e.key === 'ArrowRight') sposta(1);
+  });
+
+  $('piede').textContent = 'Questa pagina si riscrive da sola a ogni immagine nuova e legge solo file del tuo computer: immagini e prompt non escono da lì (da internet arrivano solo i caratteri della pagina, se c\'è la connessione). Se non vedi l\'ultima immagine o l\'ultimo prompt, ricarica (Cmd + R sul Mac, Ctrl + R su Windows)'
+    + (D.aggiornata ? '. Aggiornata il ' + quando(D.aggiornata) + '.' : '.');
+  conto(); disegnaFiltri(); disegnaGriglia(); disegnaPrompt();
+  var sc = 'galleria'; try { sc = localStorage.getItem('image-studio-scheda') || 'galleria'; } catch (e) {}
+  mostra(sc === 'prompt' ? 'prompt' : 'galleria');
+})();
+</script>
+</body>
+</html>

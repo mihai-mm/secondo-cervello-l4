@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Il secondo cervello, con Claude</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0D0B0A;
+    --pannello: #171310;
+    --testo: #F6F2EB;
+    --testo-soft: rgba(246, 242, 235, .72);
+    --ciano: #22E0FF;
+    --oro: #E8B84A;
+    --linea: rgba(246, 242, 235, .16);
+    --titoli: 'Archivo', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+    --corpo: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--testo); }
+  body { font-family: var(--corpo); font-size: 18px; line-height: 1.45; overflow: hidden; }
+  main { height: 100vh; height: 100dvh; display: grid; grid-template-columns: 1fr minmax(340px, 30vw); }
+  #scena { position: relative; min-height: 0; overflow: hidden; touch-action: none; }
+  #scena canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  #scena canvas:active { cursor: grabbing; }
+  #etichette { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .etichetta {
+    position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer;
+    font: 800 clamp(15px, 1.5vw, 22px)/1.15 var(--titoli); color: var(--testo);
+    background: rgba(13, 11, 10, .72); border: 1px solid var(--linea); border-radius: 999px;
+    padding: .35em .9em; white-space: nowrap; transition: opacity .4s, border-color .3s;
+  }
+  .etichetta.acceso { border-color: var(--ciano); }
+  .etichetta:focus-visible { outline: 3px solid var(--ciano); outline-offset: 2px; }
+  #marchio { position: absolute; left: 20px; top: 16px; font: 800 14px var(--titoli); letter-spacing: .14em; text-transform: uppercase; color: var(--testo-soft); pointer-events: none; }
+  #marchio b { color: var(--ciano); font-weight: 800; }
+  #messaggio {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 32px;
+    text-align: center; font: 600 22px/1.4 var(--corpo); background: var(--bg);
+  }
+  #messaggio[hidden] { display: none; }
+
+  #pannello {
+    background: var(--pannello); border-left: 1px solid var(--linea);
+    display: flex; flex-direction: column; min-height: 0; padding: 28px 28px 0;
+    overflow-y: auto;
+  }
+  #cInfo { font: 800 14px var(--titoli); letter-spacing: .14em; text-transform: uppercase; color: var(--ciano); margin: 0 0 10px; }
+  #cTitolo { font: 800 clamp(28px, 2.6vw, 42px)/1.08 var(--titoli); margin: 0 0 14px; }
+  #cRuolo { font-size: clamp(19px, 1.5vw, 24px); margin: 0 0 14px; }
+  #cEsempio { font-size: clamp(17px, 1.3vw, 21px); color: var(--testo-soft); margin: 0 0 14px; }
+  #cDida {
+    font: 600 clamp(19px, 1.5vw, 24px)/1.35 var(--corpo); color: var(--bg); background: var(--ciano);
+    border-radius: 12px; padding: 12px 16px; margin: 4px 0 14px;
+  }
+  #cDida[hidden] { display: none; }
+  .comandi-box { margin-top: auto; position: sticky; bottom: 0; background: var(--pannello); padding: 14px 0 20px; }
+  .punti { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .punto { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--testo-soft); background: transparent; padding: 0; cursor: pointer; }
+  .punto.fatto { background: var(--testo-soft); }
+  .punto.attuale { background: var(--ciano); border-color: var(--ciano); transform: scale(1.25); }
+  .comandi { display: flex; gap: 10px; flex-wrap: wrap; }
+  button.grande {
+    font: 800 20px var(--titoli); min-height: 54px; padding: 0 26px; border-radius: 12px; cursor: pointer;
+    border: 2px solid var(--testo-soft); background: transparent; color: var(--testo);
+  }
+  button.grande.primario { background: var(--ciano); border-color: var(--ciano); color: var(--bg); flex: 1 1 160px; }
+  button.grande:disabled { opacity: .35; cursor: default; }
+  button.grande:focus-visible, .punto:focus-visible { outline: 3px solid var(--oro); outline-offset: 2px; }
+  #ripeti { font: 600 17px var(--corpo); min-height: 44px; margin-top: 10px; padding: 0 16px; }
+  #ripeti[hidden] { display: none; }
+  .suggerimento { font-size: 15px; color: var(--testo-soft); margin: 14px 0 0; }
+
+  @media (max-width: 820px) {
+    body { font-size: 16px; }
+    main { grid-template-columns: 1fr; grid-template-rows: minmax(250px, 48dvh) 1fr; }
+    #pannello { border-left: 0; border-top: 1px solid var(--linea); padding: 18px 16px 0; }
+    #cTitolo { font-size: 26px; margin-bottom: 10px; }
+    #cRuolo { font-size: 18px; margin-bottom: 10px; }
+    #cEsempio { font-size: 16px; margin-bottom: 10px; }
+    #cDida { font-size: 17px; }
+    button.grande { font-size: 18px; min-height: 50px; padding: 0 18px; }
+    .etichetta { font-size: 13px; padding: .3em .7em; }
+    #marchio { left: 16px; top: 12px; font-size: 12px; }
+    .suggerimento { display: none; }
+  }
+</style>
+<!-- Rete di sicurezza: se la scena non parte entro pochi secondi, avvisa in italiano. -->
+<script>
+  setTimeout(function () {
+    if (!window.__pronto) {
+      var m = document.getElementById('messaggio');
+      if (m) { m.hidden = false; m.textContent = 'Non riesco a caricare la scena 3D. Serve una connessione a internet la prima volta che apri la pagina. Controlla la rete e ricarica.'; }
+    }
+  }, 8000);
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<main>
+  <section id="scena" aria-label="Scena 3D del secondo cervello">
+    <div id="marchio"><b>Secondo Cervello</b> · come funziona</div>
+    <div id="etichette"></div>
+    <div id="messaggio" hidden></div>
+  </section>
+  <aside id="pannello" aria-live="polite">
+    <p id="cInfo"></p>
+    <h1 id="cTitolo"></h1>
+    <p id="cRuolo"></p>
+    <p id="cEsempio"></p>
+    <p id="cDida" hidden></p>
+    <div class="comandi-box">
+      <div class="punti" id="punti"></div>
+      <div class="comandi">
+        <button class="grande" id="indietro" type="button">Indietro</button>
+        <button class="grande primario" id="avanti" type="button">Avanti</button>
+      </div>
+      <button class="grande" id="ripeti" type="button" hidden>Rivedi il giro</button>
+      <p class="suggerimento">Freccia destra o barra spaziatrice: avanti. Trascina la scena per ruotarla. Clic su un pezzo: la sua scheda.</p>
+    </div>
+  </aside>
+</main>
+<noscript>Serve JavaScript per vedere la demo.</noscript>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* =====================================================================
+   COME SI MODIFICA QUESTA DEMO (per chi la modifica, anche Claude)
+   ---------------------------------------------------------------------
+   1. COMPONENTI: l'elenco dei pezzi della scena. Per aggiungerne uno basta
+      una voce nuova in fondo all'elenco (vedi il segno "NUOVI COMPONENTI").
+        id            nome breve senza spazi, usato nei collegamenti e nei passi
+        nome          il titolo che si legge sulla scheda e sull'etichetta
+        ruolo         che cosa fa, in una frase
+        esempio       un esempio concreto
+        posizione     [x, y, z]: x destra/sinistra, y alto/basso, z vicino/lontano
+        forma         una tra: 'cartella', 'finestra', 'nucleo', 'nuvola', 'cassaforte'
+        colore        colori di casa: crema #F6F2EB, ciano #22E0FF, oro #E8B84A,
+                      violetto #A78BFA, azzurro #7FB2FF
+        collegamenti  gli id dei pezzi a cui è collegato con una linea
+                      (basta scriverlo da una parte sola)
+      La telecamera si riadatta da sola al numero di pezzi.
+
+   2. PASSI: il racconto, nell'ordine in cui scorre con "Avanti".
+        { fuoco: 'id' }                      accende quel pezzo e mostra la sua scheda
+        { titolo, testo, accendi: [...] }    un passo con testo suo
+        sequenza: [ { da, a, testo }, ... ]  facoltativa: file che viaggiano da un pezzo
+                                             all'altro, uno alla volta (da: null = solo
+                                             un lampo su "a"). Il testo appare in azzurro.
+      Per aggiungere un passo: una voce nuova in fondo (segno "NUOVI PASSI").
+   ===================================================================== */
+
+const COMPONENTI = [
+  {
+    id: 'vault',
+    nome: 'Il vault sul computer',
+    ruolo: 'È la memoria: cartelle e file di testo che stanno sul tuo computer.',
+    esempio: 'Dentro ci sono il tuo profilo, il tuo stile, i progetti e i clienti, e le skill, cioè le procedure.',
+    posizione: [-3.6, -0.6, 0],
+    forma: 'cartella',
+    colore: '#F6F2EB',
+    collegamenti: []
+  },
+  {
+    id: 'obsidian',
+    nome: 'Obsidian',
+    ruolo: 'È la finestra: ti fa leggere e girare nel vault, e correggere a mano.',
+    esempio: 'Paola apre la bozza, cambia una frase e salva. Claude la ritrova già corretta.',
+    posizione: [-3.6, 2.9, 0],
+    forma: 'finestra',
+    colore: '#A78BFA',
+    collegamenti: ['vault']
+  },
+  {
+    id: 'claude',
+    nome: 'Claude Code',
+    ruolo: 'È il collaboratore: legge e scrive nel vault, usa le skill (le procedure) e gli agent (i colleghi con occhi freschi).',
+    esempio: 'Una skill è una procedura pronta, come «scrivi un post». Un agent è un collega che rilegge il lavoro senza averlo scritto.',
+    posizione: [0.7, 0.3, 0],
+    forma: 'nucleo',
+    colore: '#22E0FF',
+    collegamenti: ['vault']
+  },
+  {
+    id: 'drive',
+    nome: 'Google Drive o OneDrive',
+    ruolo: 'È la cartella dove sta il vault: resta scaricato sul computer, e intanto se ne tiene una copia online, sempre aggiornata.',
+    esempio: 'Claude e Obsidian lavorano sui file del computer. Drive li copia online da solo, così Paola ritrova le note anche dal telefono.',
+    posizione: [-7.8, -0.6, -0.5],
+    forma: 'nuvola',
+    colore: '#7FB2FF',
+    collegamenti: ['vault']
+  }
+  // ← NUOVI COMPONENTI: aggiungi qui sotto una voce nuova (ricorda la virgola sopra)
+];
+
+const PASSI = [
+  {
+    titolo: 'Un secondo cervello, pezzo per pezzo',
+    testo: 'Premi Avanti: accendiamo un pezzo alla volta e vediamo che cosa fa.',
+    accendi: []
+  },
+  { fuoco: 'vault' },
+  { fuoco: 'obsidian' },
+  { fuoco: 'claude' },
+  { fuoco: 'drive' },
+  {
+    titolo: 'Un giro completo: Paola chiede il post del lancio',
+    testo: 'Guarda i file viaggiare da un pezzo all’altro.',
+    accendi: ['vault', 'obsidian', 'claude', 'drive'],
+    sequenza: [
+      { da: null, a: 'claude', testo: 'Paola chiede a Claude: «Scrivimi il post del lancio».' },
+      { da: 'vault', a: 'claude', testo: 'Claude legge dal vault lo stile di Paola e gli appunti.' },
+      { da: 'claude', a: 'vault', testo: 'Claude scrive la bozza nel vault.' },
+      { da: 'vault', a: 'drive', testo: 'Drive copia online la bozza, da solo.' },
+      { da: 'vault', a: 'obsidian', testo: 'Obsidian mostra la bozza: Paola la legge e la corregge.' }
+    ]
+  }
+  // ← NUOVI PASSI: aggiungi qui sotto un passo nuovo (ricorda la virgola sopra)
+];
+
+/* ===================== da qui in giù: il motore, non serve toccarlo ===================== */
+
+const DURATA_EVENTO = 3.4;   // secondi per ogni scambio del giro
+const VIAGGIO = 1.7;         // secondi che impiega un file a viaggiare
+const $ = id => document.getElementById(id);
+const comp = Object.fromEntries(COMPONENTI.map(c => [c.id, c]));
+
+let passo = 0;
+let selezionato = null;
+let scena3d = null;
+let seq = null;          // giro in corso
+let dida = '';
+
+/* ---------- pannello di testo ---------- */
+function acceso() {
+  const s = new Set();
+  for (let i = 0; i <= passo; i++) {
+    const p = PASSI[i];
+    if (p.fuoco) s.add(p.fuoco);
+    (p.accendi || []).forEach(x => s.add(x));
+  }
+  return s;
+}
+
+function mostra() {
+  const p = PASSI[passo];
+  const c = selezionato ? comp[selezionato] : (p.fuoco ? comp[p.fuoco] : null);
+  $('cInfo').textContent = selezionato ? 'Scheda scelta con un clic' : 'Passo ' + (passo + 1) + ' di ' + PASSI.length;
+  $('cTitolo').textContent = c ? c.nome : p.titolo;
+  $('cRuolo').textContent = c ? c.ruolo : p.testo;
+  $('cEsempio').textContent = c ? 'Esempio: ' + c.esempio : '';
+  const d = $('cDida');
+  d.hidden = !(p.sequenza && dida);
+  d.textContent = dida;
+  $('indietro').disabled = passo === 0;
+  $('avanti').textContent = passo === PASSI.length - 1 ? 'Ricomincia' : 'Avanti';
+  $('ripeti').hidden = !p.sequenza;
+  document.querySelectorAll('.punto').forEach((el, i) => {
+    el.className = 'punto' + (i < passo ? ' fatto' : '') + (i === passo ? ' attuale' : '');
+  });
+}
+
+function vaiA(n) {
+  passo = Math.max(0, Math.min(PASSI.length - 1, n));
+  selezionato = null;
+  dida = '';
+  seq = PASSI[passo].sequenza ? { i: -1, t: 0, fine: false } : null;
+  if (scena3d) scena3d.nuovoPasso(acceso(), PASSI[passo].fuoco);
+  mostra();
+}
+function avanti() { vaiA(passo === PASSI.length - 1 ? 0 : passo + 1); }
+function indietro() { vaiA(passo - 1); }
+
+PASSI.forEach((p, i) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'punto';
+  b.setAttribute('aria-label', 'Vai al passo ' + (i + 1));
+  b.addEventListener('click', () => vaiA(i));
+  $('punti').appendChild(b);
+});
+$('avanti').addEventListener('click', avanti);
+$('indietro').addEventListener('click', indietro);
+$('ripeti').addEventListener('click', () => vaiA(passo));
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); avanti(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); indietro(); }
+});
+
+/* ---------- scena 3D ---------- */
+function avviaScena() {
+  const contenitore = $('scena');
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  } catch (err) {
+    return null;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x0D0B0A, 1);
+  contenitore.insertBefore(renderer.domElement, contenitore.firstChild);
+
+  const scene = new THREE.Scene();
+  const mondo = new THREE.Group();
+  scene.add(mondo);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const sole = new THREE.DirectionalLight(0xffffff, 1.2);
+  sole.position.set(4, 8, 8);
+  scene.add(sole);
+
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  const controlli = new OrbitControls(camera, renderer.domElement);
+  controlli.enablePan = false;
+  controlli.enableZoom = false;
+  controlli.enableDamping = true;
+  controlli.dampingFactor = 0.08;
+  controlli.rotateSpeed = 0.6;
+  controlli.minAzimuthAngle = -0.8; controlli.maxAzimuthAngle = 0.8;
+  controlli.minPolarAngle = 1.05; controlli.maxPolarAngle = 1.85;
+
+  /* alone luminoso riusabile */
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const cx = cv.getContext('2d');
+  const gr = cx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  cx.fillStyle = gr; cx.fillRect(0, 0, 128, 128);
+  const texAlone = new THREE.CanvasTexture(cv);
+
+  const ORO = 0xE8B84A, CREMA = 0xF6F2EB, SCURO = 0x1d1814;
+
+  /* ----- le forme: ognuna riceve il gruppo, il colore e due fabbriche di materiali.
+         Può restituire una funzione (t) che la anima. ----- */
+  const FORME = {
+    cartella(g, col, M, L) {
+      const geo = new THREE.BoxGeometry(1.7, 1.5, 1.1);
+      g.add(new THREE.Mesh(geo, M(SCURO)));
+      g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), L(col, 0.95)));
+      for (let i = 0; i < 3; i++) {
+        const c = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.38, 0.08), M(col, { emi: 0.25 }));
+        c.position.set(0, 0.45 - i * 0.48, 0.58); g.add(c);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.07, 0.1), M(ORO, { emi: 0.6 }));
+        m.position.set(0, 0.45 - i * 0.48, 0.65); g.add(m);
+      }
+      const files = [];
+      for (let i = 0; i < 5; i++) {
+        const mat = M(CREMA, { emi: 0.55 }); mat.side = THREE.DoubleSide;
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.48), mat);
+        g.add(f); files.push(f);
+      }
+      return t => files.forEach((f, i) => {
+        const a = t * 0.5 + i * 1.2566;
+        f.position.set(Math.cos(a) * 1.5, 1.0 + Math.sin(a * 1.7 + i) * 0.3, Math.sin(a) * 1.05);
+        f.rotation.y = -a + Math.PI / 2;
+      });
+    },
+    finestra(g, col, M, L) {
+      g.rotation.y = 0.2;
+      const geo = new THREE.BoxGeometry(2.4, 1.6, 0.1);
+      g.add(new THREE.Mesh(geo, M(SCURO)));
+      g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), L(col, 0.95)));
+      const barra = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.26, 0.12), M(col, { emi: 0.35 }));
+      barra.position.y = 0.67; g.add(barra);
+      [-1, 0, 1].forEach(k => {
+        const p = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 12), M(0x0D0B0A));
+        p.position.set(-1.05 + (k + 1) * 0.16, 0.67, 0.08); g.add(p);
+      });
+      const larghezze = [1.8, 1.4, 1.9, 1.1, 1.6];
+      const righe = larghezze.map((w, i) => {
+        const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, 0.05), M(i === 2 ? col : CREMA, { emi: 0.45, op: i === 2 ? 1 : 0.75 }));
+        r.position.set(-1.1 + w / 2 - 0.0, 0.3 - i * 0.26, 0.08); r.userData.w = w; g.add(r);
+        return r;
+      });
+      return t => righe.forEach((r, i) => { r.scale.x = 0.85 + 0.15 * Math.sin(t * 1.3 + i); r.position.x = -1.0 + r.userData.w * r.scale.x / 2; });
+    },
+    nucleo(g, col, M, L) {
+      const centro = new THREE.Mesh(new THREE.IcosahedronGeometry(0.62, 1), M(col, { emi: 1.6 }));
+      g.add(centro);
+      const rete = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(1.0, 1)), L(col, 0.55));
+      g.add(rete);
+      const anelli = [0, 1].map(i => {
+        const a = new THREE.Mesh(new THREE.TorusGeometry(1.25 + i * 0.2, 0.02, 8, 80), M(col, { emi: 1.2, op: 0.8 }));
+        g.add(a); return a;
+      });
+      const alone = new THREE.Sprite(new THREE.SpriteMaterial({ map: texAlone, color: col, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+      alone.scale.set(4.2, 4.2, 1); alone.userData.registra = 0.7; g.add(alone);
+      g.userData.alone = alone;
+      return t => {
+        centro.rotation.y = t * 0.8; centro.rotation.x = t * 0.4;
+        rete.rotation.y = -t * 0.35; rete.rotation.z = t * 0.2;
+        anelli[0].rotation.set(t * 0.6, 0.4, 0); anelli[1].rotation.set(1.1, t * 0.5, 0.3);
+        const s = 1 + Math.sin(t * 2) * 0.04; centro.scale.setScalar(s);
+      };
+    },
+    nuvola(g, col, M, L) {
+      [[0, 0, 0.62], [-0.8, -0.12, 0.48], [0.8, -0.08, 0.52], [-0.3, 0.42, 0.45], [0.35, 0.45, 0.42], [0, -0.25, 0.55]].forEach(([x, y, r]) => {
+        const s = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), M(col, { emi: 0.3 }));
+        s.position.set(x, y, 0); g.add(s);
+      });
+      return t => { g.position.y = g.userData.y0 + Math.sin(t * 0.9) * 0.1; };
+    },
+    cassaforte(g, col, M, L) {
+      const geo = new THREE.BoxGeometry(1.7, 1.6, 1.3);
+      g.add(new THREE.Mesh(geo, M(SCURO)));
+      g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), L(col, 0.95)));
+      const porta = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.1, 40), M(col, { emi: 0.35 }));
+      porta.rotation.x = Math.PI / 2; porta.position.z = 0.68; g.add(porta);
+      const ruota = new THREE.Group(); ruota.position.z = 0.78; g.add(ruota);
+      ruota.add(new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.04, 10, 32), M(CREMA, { emi: 0.5 })));
+      for (let i = 0; i < 3; i++) {
+        const raggio = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.05, 0.05), M(CREMA, { emi: 0.5 }));
+        raggio.rotation.z = i * Math.PI / 3; ruota.add(raggio);
+      }
+      [0.45, -0.45].forEach(y => {
+        const c = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.12), M(CREMA, { emi: 0.3 }));
+        c.position.set(-0.85, y, 0.55); g.add(c);
+      });
+      return t => { ruota.rotation.z = Math.sin(t * 0.7) * 0.5 + g.userData.pulse * 2; };
+    }
+  };
+
+  /* ----- costruzione dei pezzi ----- */
+  const pezzi = {};
+  const etichette = $('etichette');
+  COMPONENTI.forEach(c => {
+    const g = new THREE.Group();
+    g.position.set(...c.posizione);
+    g.userData = { id: c.id, y0: c.posizione[1], luce: 0, bersaglio: 0, pulse: 0 };
+    const mats = [];
+    const col = new THREE.Color(c.colore);
+    const M = (colore, o = {}) => {
+      const m = new THREE.MeshStandardMaterial({ color: colore, emissive: colore, emissiveIntensity: o.emi || 0, roughness: 0.55, metalness: 0.1, transparent: true, opacity: o.op === undefined ? 1 : o.op });
+      mats.push({ m, op: m.opacity, emi: o.emi || 0 }); return m;
+    };
+    const L = (colore, op) => {
+      const m = new THREE.LineBasicMaterial({ color: colore, transparent: true, opacity: op });
+      mats.push({ m, op, emi: null }); return m;
+    };
+    const forma = FORME[c.forma];
+    if (!forma) { console.warn('Forma sconosciuta: ' + c.forma); return; }
+    const anima = forma(g, col, M, L);
+    g.traverse(o => { if (o.isSprite) mats.push({ m: o.material, op: o.material.opacity * 0.8, emi: null }); });
+    mondo.add(g);
+    const el = document.createElement('button');
+    el.type = 'button'; el.className = 'etichetta'; el.textContent = c.nome;
+    el.addEventListener('click', () => scegli(c.id));
+    etichette.appendChild(el);
+    pezzi[c.id] = { g, mats, anima, el, base: g.scale.x };
+  });
+
+  /* ----- collegamenti (una linea per coppia) ----- */
+  const link = [];
+  const viste = new Set();
+  COMPONENTI.forEach(c => (c.collegamenti || []).forEach(altro => {
+    if (!pezzi[altro] || !pezzi[c.id]) return;
+    const chiave = [c.id, altro].sort().join('|');
+    if (viste.has(chiave)) return; viste.add(chiave);
+    const a = new THREE.Vector3(...c.posizione), b = new THREE.Vector3(...comp[altro].posizione);
+    const mid = a.clone().add(b).multiplyScalar(0.5); mid.y += a.distanceTo(b) * 0.12; mid.z += 0.4;
+    const curva = new THREE.QuadraticBezierCurve3(a, mid, b);
+    const matLinea = new THREE.MeshBasicMaterial({ color: CREMA, transparent: true, opacity: 0.12 });
+    mondo.add(new THREE.Mesh(new THREE.TubeGeometry(curva, 32, 0.025, 6, false), matLinea));
+    const matP = new THREE.MeshBasicMaterial({ color: 0x22E0FF, transparent: true, opacity: 0 });
+    const amb = [];
+    for (let i = 0; i < 5; i++) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 10), matP);
+      mondo.add(s); amb.push({ s, off: i / 5 });
+    }
+    link.push({ a: c.id, b: altro, curva, matLinea, matP, amb, luce: 0 });
+  }));
+  const trovaLink = (x, y) => link.find(l => (l.a === x && l.b === y) || (l.a === y && l.b === x));
+
+  /* ----- pacchetti (i file e le richieste che viaggiano) ----- */
+  const pacchetti = [];
+  const geoPacchetto = new THREE.SphereGeometry(0.11, 14, 14);
+  const matPacchetti = {};
+  function lancia(da, a) {
+    const l = trovaLink(da, a);
+    if (!l) { if (pezzi[a]) pezzi[a].g.userData.pulse = 1; return; }
+    const colore = (pezzi[a] && comp[a].colore === '#E8B84A') || (pezzi[da] && comp[da].colore === '#E8B84A') ? 0xE8B84A : 0x22E0FF;
+    matPacchetti[colore] = matPacchetti[colore] || new THREE.MeshBasicMaterial({ color: colore });
+    for (let i = 0; i < 7; i++) {
+      const m = new THREE.Mesh(geoPacchetto, matPacchetti[colore]);
+      const al = new THREE.Sprite(new THREE.SpriteMaterial({ map: texAlone, color: colore, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+      al.scale.set(0.7, 0.7, 1); m.add(al);
+      m.visible = false; mondo.add(m);
+      pacchetti.push({ m, l, dritto: l.a === da, ritardo: i * 0.14, t0: now, a });
+    }
+  }
+
+  /* ----- messa a fuoco della telecamera ----- */
+  const pos = COMPONENTI.map(c => c.posizione);
+  const min = [0, 1, 2].map(i => Math.min(...pos.map(p => p[i])));
+  const max = [0, 1, 2].map(i => Math.max(...pos.map(p => p[i])));
+  const centro = new THREE.Vector3((min[0] + max[0]) / 2, (min[1] + max[1]) / 2 - 0.2, 0);
+  const mezzaL = (max[0] - min[0]) / 2 + 1.9, mezzaA = (max[1] - min[1]) / 2 + 1.9;
+  let bersaglio = centro.clone();
+  controlli.target.copy(centro);
+  camera.position.set(centro.x, centro.y + 1.2, 16);
+  function adatta() {
+    const w = contenitore.clientWidth, h = contenitore.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const dist = Math.max(mezzaA / t, mezzaL / (t * camera.aspect));
+    const dir = camera.position.clone().sub(controlli.target).normalize();
+    camera.position.copy(controlli.target).addScaledVector(dir, dist);
+  }
+  new ResizeObserver(adatta).observe(contenitore);
+  adatta();
+
+  /* ----- clic su un pezzo ----- */
+  const raggio = new THREE.Raycaster(), p2 = new THREE.Vector2();
+  let giu = null;
+  renderer.domElement.addEventListener('pointerdown', e => { giu = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener('pointerup', e => {
+    if (!giu || Math.hypot(e.clientX - giu[0], e.clientY - giu[1]) > 6) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    p2.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    raggio.setFromCamera(p2, camera);
+    const hit = raggio.intersectObjects(COMPONENTI.map(c => pezzi[c.id] && pezzi[c.id].g).filter(Boolean), true)[0];
+    if (hit) { let o = hit.object; while (o && !o.userData.id) o = o.parent; if (o) scegli(o.userData.id); }
+    else if (selezionato) { selezionato = null; mostra(); }
+  });
+  function scegli(id) { selezionato = id; mostra(); }
+
+  /* ----- ciclo di animazione ----- */
+  let now = 0, ultimo = performance.now();
+  const v = new THREE.Vector3();
+  function ciclo() {
+    requestAnimationFrame(ciclo);
+    const ora = performance.now();
+    const dt = Math.min(0.05, (ora - ultimo) / 1000); ultimo = ora; now += dt;
+
+    mondo.rotation.y = Math.sin(now * 0.18) * 0.22;   // rotazione lenta
+
+    // giro: un scambio alla volta
+    if (seq && !seq.fine) {
+      const ev = PASSI[passo].sequenza;
+      seq.t += dt;
+      if (seq.i < 0 || seq.t >= DURATA_EVENTO) {
+        if (seq.i + 1 < ev.length) {
+          seq.i++; seq.t = 0;
+          const e = ev[seq.i];
+          if (e.da) lancia(e.da, e.a); else if (pezzi[e.a]) pezzi[e.a].g.userData.pulse = 1;
+          dida = e.testo; mostra();
+        } else seq.fine = true;
+      }
+    }
+
+    // luce dei pezzi
+    Object.values(pezzi).forEach(p => {
+      const u = p.g.userData;
+      u.luce += (u.bersaglio - u.luce) * Math.min(1, dt * 4);
+      u.pulse = Math.max(0, u.pulse - dt * 1.4);
+      const k = 0.2 + 0.8 * u.luce;
+      p.mats.forEach(({ m, op, emi }) => {
+        m.opacity = op * k;
+        if (emi !== null) m.emissiveIntensity = emi * (0.3 + 0.7 * u.luce) + u.pulse * 0.9;
+      });
+      p.g.scale.setScalar(1 + 0.12 * u.pulse);
+      if (p.anima) p.anima(now);
+      p.el.style.opacity = 0.35 + 0.65 * u.luce;
+      p.el.classList.toggle('acceso', u.bersaglio > 0.5);
+    });
+
+    // linee e particelle di fondo
+    link.forEach(l => {
+      const lu = Math.min(pezzi[l.a].g.userData.luce, pezzi[l.b].g.userData.luce);
+      l.matLinea.opacity = 0.1 + 0.5 * lu;
+      l.matP.opacity = 0.95 * lu;
+      l.amb.forEach(p => { p.s.position.copy(l.curva.getPoint((now * 0.12 + p.off) % 1)); p.s.visible = lu > 0.05; });
+    });
+
+    // pacchetti
+    for (let i = pacchetti.length - 1; i >= 0; i--) {
+      const p = pacchetti[i];
+      const t = (now - p.t0 - p.ritardo) / VIAGGIO;
+      if (t < 0) continue;
+      if (t >= 1) {
+        if (pezzi[p.a]) pezzi[p.a].g.userData.pulse = 1;
+        mondo.remove(p.m); pacchetti.splice(i, 1); continue;
+      }
+      p.m.visible = true;
+      const f = t * t * (3 - 2 * t);
+      p.m.position.copy(p.l.curva.getPoint(p.dritto ? f : 1 - f));
+    }
+
+    // telecamera: si sposta appena verso il pezzo in primo piano
+    const delta = bersaglio.clone().sub(controlli.target).multiplyScalar(0.04);
+    controlli.target.add(delta); camera.position.add(delta);
+    controlli.update();
+    renderer.render(scene, camera);
+
+    // etichette
+    const w = contenitore.clientWidth, h = contenitore.clientHeight;
+    COMPONENTI.forEach(c => {
+      const p = pezzi[c.id]; if (!p) return;
+      p.g.getWorldPosition(v); v.y -= 1.45; v.project(camera);
+      const mw = p.el.offsetWidth / 2 + 6;
+      const px = Math.max(mw, Math.min(w - mw, (v.x * 0.5 + 0.5) * w));
+      p.el.style.transform = 'translate(' + px + 'px,' + ((-v.y * 0.5 + 0.5) * h) + 'px) translate(-50%, 0)';
+    });
+  }
+  ciclo();
+
+  return {
+    nuovoPasso(accesi, fuoco) {
+      Object.keys(pezzi).forEach(id => { pezzi[id].g.userData.bersaglio = accesi.has(id) ? 1 : 0; });
+      pacchetti.splice(0).forEach(p => mondo.remove(p.m));
+      bersaglio = fuoco && comp[fuoco] ? centro.clone().multiplyScalar(0.6).add(new THREE.Vector3(...comp[fuoco].posizione).multiplyScalar(0.4)) : centro.clone();
+      if (fuoco && pezzi[fuoco]) pezzi[fuoco].g.userData.pulse = 1;
+    }
+  };
+}
+
+scena3d = avviaScena();
+if (!scena3d) {
+  window.__pronto = true;
+  $('messaggio').hidden = false;
+  $('messaggio').textContent = 'Il tuo browser non riesce a mostrare la scena 3D (serve WebGL). Prova con Chrome o Safari aggiornati: il testo qui a fianco funziona comunque.';
+} else {
+  window.__pronto = true;
+}
+const iniziale = parseInt(new URLSearchParams(location.search).get('passo'), 10);
+vaiA(Number.isFinite(iniziale) ? iniziale - 1 : 0);
+</script>
+</body>
+</html>

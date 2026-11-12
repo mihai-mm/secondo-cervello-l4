@@ -1,0 +1,63 @@
+# Cosa NON va nella copia su GitHub
+# Questo elenco dice a GitHub Desktop quali file lasciare fuori dalla copia.
+# Le righe che iniziano con # sono commenti: servono a te, non fanno nulla.
+# Per usarlo: Claude ne ricava il file .gitignore nella cartella principale del vault, con il tuo sì.
+# Per togliere una regola: cancella la riga o mettici # davanti. Per aggiungerne una: scrivi il nome del file o della cartella.
+
+# --- File che crea il computer da solo (non sono tuoi) ---
+.DS_Store
+Thumbs.db
+desktop.ini
+# File temporanei di Word, Excel e PowerPoint (compaiono mentre il file è aperto)
+~$*
+.~lock.*
+*.tmp
+
+# --- Impostazioni personali: cambiano a ogni apertura e non servono in una copia ---
+# Obsidian: come hai disposto le finestre
+.obsidian/workspace*.json
+# Obsidian: il cestino interno
+.trash/
+# Claude: i «consenti sempre» che hai dato sul tuo computer
+.claude/settings.local.json
+
+# --- Chiavi e password: non vanno mai nel vault, questa è solo una rete di sicurezza ---
+.env
+*.env
+*.pem
+# Attenzione: questa riga esclude anche le presentazioni Keynote del Mac. Se ne hai, metti # davanti alla riga qui sotto.
+*.key
+
+# --- File pesanti: video, audio, archivi, installer ---
+# GitHub avvisa sopra i 50 MiB e rifiuta i file sopra i 100 MiB.
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.flac
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.dmg
+*.iso
+*.exe
+*.msi
+
+# --- PDF ---
+# Di solito sono documenti scaricati o scansioni, spesso grandi, e non si leggono nello storico.
+# Se invece hai PDF piccoli che vuoi conservare nelle versioni, metti # davanti alla riga qui sotto.
+*.pdf
+
+# --- Cartelle che scegli tu ---
+# Se nel vault ci sono dati di clienti o riservati che non vuoi mettere nella copia, aggiungi qui la cartella.
+# Attenzione: quello che escludi non finisce nemmeno nelle versioni, quindi resta solo sul tuo computer.
+# Esempi (togli il # e scrivi il nome vero, con la barra alla fine):
+# 1-Projects/Nome di un cliente/
+# 2-Areas/Una cartella riservata/
